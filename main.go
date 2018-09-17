@@ -39,6 +39,7 @@ func main() {
 	runtime.Goexit()
 }
 func printMsg(m *nats.Msg, cntrlr *Controller) {
+	log.Println(string(m.Data))
 	jsonParsed, _ := gabs.ParseJSON(m.Data)
 	action := jsonParsed.Path("action").Data().(string)
 	name := jsonParsed.Path("name").Data().(string)
@@ -46,13 +47,19 @@ func printMsg(m *nats.Msg, cntrlr *Controller) {
 	if name == "6147" {
 		return
 	}
-	/*for k, _ := range cntrlr.records {
-		if k == name {
-			return
+	if name != "10603" {
+		return
+	}
+	if action == "start" {
+		go Recorder(cntrlr, name)
+
+	} else {
+		for k, c := range cntrlr.records {
+			if k == name {
+				cntrlr.unregister <- c
+			}
+
 		}
-		if k == "6147" {
-			return
-		}
-	}*/
-	go Recorder(cntrlr, name)
+
+	}
 }

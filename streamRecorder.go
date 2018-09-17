@@ -71,7 +71,7 @@ func DownloadChunkFile(filepath string, url string, pl string, chunk string, dur
 		}
 	} else {
 		//fmt.Println("exist")
-		client.exitsCounter++
+		//client.exitsCounter++
 	}
 	return nil
 }
@@ -168,9 +168,9 @@ func (c *Client) handlerRead() {
 				return
 			}
 		default:
-			if c.exitsCounter > 10 {
+			/*if c.exitsCounter > 10 {
 				go checkForLive(c)
-			}
+			}*/
 			log.Println(c.exitsCounter)
 			fetchStream(c.id, c.livePath, c)
 			time.Sleep(1 * time.Second)

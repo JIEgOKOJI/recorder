@@ -15,12 +15,13 @@ import (
 )
 
 type Client struct {
-	id           string
-	stopRecord   chan []byte
-	cntrl        *Controller
-	archivePath  string
-	livePath     string
-	exitsCounter int
+	id                     string
+	stopRecord             chan []byte
+	cntrl                  *Controller
+	archivePath            string
+	livePath               string
+	exitsCounter           int
+	archivePathWithoutMins string
 }
 
 func makeRequest(url string) (string, error) {
@@ -47,7 +48,7 @@ func DownloadChunkFile(filepath string, url string, pl string, chunk string, dur
 	//fmt.Println(filepath)
 	_, err := os.Stat(filepath)
 	if os.IsNotExist(err) {
-		err := WritePlaylist(pl, chunk, duration)
+		err := WritePlaylist(pl, chunk, duration, client)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -99,13 +100,15 @@ func DownloadFile(filepath string, url string) error {
 
 	return nil
 }
-func WritePlaylist(filepath string, data string, duration int) error {
+func WritePlaylist(filepath string, data string, duration int, client *Client) error {
 
 	// Create the file
 	_, err := os.Stat(filepath)
 	if os.IsNotExist(err) {
 		out, err := os.Create(filepath)
 		if err != nil {
+			existsAndMake(client.archivePathWithoutMins)
+			existsAndMake(client.livePath)
 			return err
 		}
 		defer out.Close()
@@ -119,13 +122,13 @@ func WritePlaylist(filepath string, data string, duration int) error {
 	} else {
 		f, err := os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
-			panic(err)
+			fmt.Println(err, "here")
 		}
 
 		defer f.Close()
 
 		if _, err = f.WriteString("\n#EXTINF:" + strconv.Itoa(duration) + ",\n" + data); err != nil {
-			panic(err)
+			fmt.Println(err, "orhere")
 		}
 		//fmt.Println("append")
 	}
@@ -133,7 +136,17 @@ func WritePlaylist(filepath string, data string, duration int) error {
 	return nil
 }
 func fetchStream(streamName string, path string, client *Client) {
-	playlist, _ := makeRequest("http://hls.goodgame.ru/hls/" + streamName + ".m3u8")
+	playlist, err := makeRequest("http://hls.goodgame.ru/hls/" + streamName + ".m3u8")
+	if err != nil {
+		fmt.Println(err)
+		if err.Error() == "Status error: 404" {
+			if client.exitsCounter > 3 {
+				client.cntrl.unregister <- client
+			} else {
+				client.exitsCounter++
+			}
+		}
+	}
 	playlistString := strings.Split(playlist, "\n")
 	var dur int
 	for _, line := range playlistString {
@@ -171,10 +184,10 @@ func (c *Client) handlerRead() {
 			/*if c.exitsCounter > 10 {
 				go checkForLive(c)
 			}*/
-			log.Println(c.exitsCounter)
+			//log.Println(c.exitsCounter)
 			fetchStream(c.id, c.livePath, c)
 			time.Sleep(1 * time.Second)
-			log.Println("recording ...")
+			//log.Println("recording ...")
 
 		}
 	}
@@ -231,9 +244,9 @@ func Recorder(controller *Controller, id string) {
 	log.Println("StartRecord")
 	ArchivePath, ArchivePathWithoutMins := getArchivePath(id)
 	LivePath := "/tank/vod/" + id + "/live/"
-	client := &Client{id: id, stopRecord: make(chan []byte, 256), cntrl: controller, archivePath: ArchivePath, livePath: LivePath, exitsCounter: 0}
+	client := &Client{id: id, stopRecord: make(chan []byte, 256), cntrl: controller, archivePath: ArchivePath, livePath: LivePath, exitsCounter: 0, archivePathWithoutMins: ArchivePathWithoutMins}
 	client.cntrl.register <- client
-	existsAndMake(ArchivePathWithoutMins)
+	existsAndMake(client.archivePathWithoutMins)
 	existsAndMake(client.livePath)
 	client.handlerRead()
 }

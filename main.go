@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"log"
 	"runtime"
@@ -24,8 +25,8 @@ func main() {
 	cntrlr := newController()
 	go cntrlr.run()
 	nc.Subscribe(subj, func(msg *nats.Msg) {
-		printMsg(msg, cntrlr)
-		time.Sleep(2 * time.Second)
+		go printMsg(msg, cntrlr)
+		//time.Sleep(2 * time.Second)
 	})
 	if err := nc.LastError(); err != nil {
 		log.Fatal(err)
@@ -44,22 +45,45 @@ func printMsg(m *nats.Msg, cntrlr *Controller) {
 	action := jsonParsed.Path("action").Data().(string)
 	name := jsonParsed.Path("name").Data().(string)
 	log.Println(action, "   ", name)
-	if name == "6147" {
+	if name == "6147" || name == "54105" || name == "48195" {
 		return
 	}
-	if name != "10603" {
+	Premium, err := checkForPrem(name)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	if Premium != true {
 		return
 	}
 	if action == "start" {
-		go Recorder(cntrlr, name)
-
-	} else {
 		for k, c := range cntrlr.records {
 			if k == name {
 				cntrlr.unregister <- c
 			}
 
 		}
+		time.Sleep(3 * time.Second)
+		go Recorder(cntrlr, name)
+
+	} else {
 
 	}
+}
+func checkForPrem(name string) (bool, error) {
+	//log.Println("check for live")
+	result, err := makeRequest("https://goodgame.ru/api/player?src=" + name)
+	if err != nil {
+		return false, err
+	}
+	jsonParsed, _ := gabs.ParseJSON([]byte(result))
+	switch jsonParsed.Path("channel_premium").Data().(type) {
+	case bool:
+		channel_status := jsonParsed.Path("channel_premium").Data().(bool)
+		return channel_status, nil
+	case string:
+		return false, nil
+	}
+	return false, errors.New("can't find type in json answer")
+
 }

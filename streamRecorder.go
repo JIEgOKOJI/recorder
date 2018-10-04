@@ -173,7 +173,7 @@ func (c *Client) handlerRead() {
 		select {
 		case _, ok := <-c.stopRecord:
 			if ok {
-				log.Println("StopRecord")
+				log.Println("StopRecord1")
 				err := os.Rename(c.livePath, c.archivePath)
 				if err != nil {
 					log.Println(err)

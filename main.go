@@ -65,6 +65,7 @@ func printMsg(m *nats.Msg, cntrlr *Controller) {
 		}
 		time.Sleep(3 * time.Second)
 		go Recorder(cntrlr, name)
+		go Recorder(cntrlr, name+"_720")
 
 	} else {
 

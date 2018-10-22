@@ -29,10 +29,24 @@ func (C *Controller) run() {
 			C.mu.Unlock()
 			log.Println(client.id)
 		case client := <-C.unregister:
-			client.stopRecord <- []byte("1")
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Println("Recovered in f", r)
+					}
+				}()
+				client.stopRecord <- []byte("1")
+			}()
 			C.mu.Lock()
 			delete(client.cntrl.records, client.id)
-			close(client.stopRecord)
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Println("Recovered in f", r)
+					}
+				}()
+				close(client.stopRecord)
+			}()
 			C.mu.Unlock()
 			log.Println(client.id)
 		}

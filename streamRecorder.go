@@ -112,7 +112,7 @@ func WritePlaylist(filepath string, data string, duration int, client *Client) e
 			return err
 		}
 		defer out.Close()
-		header := "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-TARGETDURATION:2\n#EXTINF:" + strconv.Itoa(duration) + ",\n"
+		header := "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:LIVE\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-TARGETDURATION:2\n#EXTINF:" + strconv.Itoa(duration) + ",\n"
 		// Write the body to file
 		_, err = out.WriteString(header + data)
 		if err != nil {
@@ -167,13 +167,25 @@ func fetchStream(streamName string, path string, client *Client) {
 func fetch2(chunk string, Duration int, NAME string, path string, client *Client) {
 	DownloadChunkFile(path+string(chunk), "http://hls.goodgame.ru/hls/"+chunk, path+NAME+"_vod.m3u8", chunk, Duration, client)
 }
+func endPlaylist(filepath string) {
+	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		fmt.Println(err, "here")
+	}
 
+	defer f.Close()
+
+	if _, err = f.WriteString("\n#EXT-X-ENDLIST"); err != nil {
+		fmt.Println(err, "orhere")
+	}
+}
 func (c *Client) handlerRead() {
 	for {
 		select {
 		case _, ok := <-c.stopRecord:
 			if ok {
 				log.Println("StopRecord1")
+				endPlaylist(c.livePath + c.id + "_vod.m3u8")
 				err := os.Rename(c.livePath, c.archivePath)
 				if err != nil {
 					log.Println(err)

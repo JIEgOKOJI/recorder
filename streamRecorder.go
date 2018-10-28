@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -140,7 +141,7 @@ func fetchStream(streamName string, path string, client *Client) {
 	if err != nil {
 		fmt.Println(err)
 		if err.Error() == "Status error: 404" {
-			if client.exitsCounter > 3 {
+			if client.exitsCounter > 10 {
 				client.cntrl.unregister <- client
 			} else {
 				client.exitsCounter++
@@ -168,6 +169,7 @@ func fetch2(chunk string, Duration int, NAME string, path string, client *Client
 	DownloadChunkFile(path+string(chunk), "http://hls.goodgame.ru/hls/"+chunk, path+NAME+"_vod.m3u8", chunk, Duration, client)
 }
 func endPlaylist(filepath string) {
+	fmt.Println("playlist path : ", filepath)
 	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		fmt.Println(err, "here")
@@ -179,6 +181,23 @@ func endPlaylist(filepath string) {
 		fmt.Println(err, "orhere")
 	}
 }
+func hlsToMp4(filepath string, id string) {
+	hlspath := filepath + id + "_vod.m3u8"
+	mp4path := filepath + id + ".mp4"
+	fmt.Println("hls : ", hlspath, "mp4 : ", mp4path)
+	ffmpeg, err := exec.Command("/usr/local/bin/ffmpeg", "-y", "-i", hlspath, "-live_start_index", "0", "-movflags", "+faststart", "-c:a", "copy", "-c:v", "copy", "-f", "mp4", mp4path).Output()
+	if err != nil {
+		fmt.Println(fmt.Sprint(err))
+		return
+	}
+	fmt.Println(string(ffmpeg))
+	deletePlaylist, _ := exec.Command("find", filepath, "-name", "*.m3u8", "-type", "f", "-delete").Output()
+	deleteChunks, _ := exec.Command("find", filepath, "-name", "*.ts", "-type", "f", "-delete").Output()
+	fmt.Println("delete playlist: ", string(deletePlaylist), " delete chunks:", string(deleteChunks))
+	mp4box, _ := exec.Command("mp4box", "-inter", "5000", mp4path, "-tmp", filepath).Output()
+	fmt.Println("Mp4Box faststart: ", string(mp4box))
+	return
+}
 func (c *Client) handlerRead() {
 	for {
 		select {
@@ -187,6 +206,7 @@ func (c *Client) handlerRead() {
 				log.Println("StopRecord1")
 				endPlaylist(c.livePath + c.id + "_vod.m3u8")
 				err := os.Rename(c.livePath, c.archivePath)
+				go hlsToMp4(c.archivePath, c.id)
 				if err != nil {
 					log.Println(err)
 				}

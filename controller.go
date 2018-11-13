@@ -1,8 +1,11 @@
 package main
 
 import (
+	//	"fmt"
 	"log"
 	"sync"
+
+	"github.com/nats-io/go-nats"
 )
 
 type Controller struct {
@@ -10,14 +13,17 @@ type Controller struct {
 	register   chan *Client
 	unregister chan *Client
 	mu         *sync.Mutex
+	nc         *nats.Conn
 }
 
 func newController() *Controller {
+	connection, _ := nats.Connect("nats://guest:guest@origin-7.goodgame.ru:4242")
 	return &Controller{
 		register:   make(chan *Client, 256),
 		unregister: make(chan *Client, 256),
 		records:    make(map[string]*Client),
 		mu:         &sync.Mutex{},
+		nc:         connection,
 	}
 }
 func (C *Controller) run() {
@@ -37,6 +43,7 @@ func (C *Controller) run() {
 				}()
 				client.stopRecord <- []byte("1")
 			}()
+
 			C.mu.Lock()
 			delete(client.cntrl.records, client.id)
 			func() {

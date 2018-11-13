@@ -205,11 +205,29 @@ func (c *Client) handlerRead() {
 			if ok {
 				log.Println("StopRecord1")
 				endPlaylist(c.livePath + c.id + "_vod.m3u8")
-				err := os.Rename(c.livePath, c.archivePath)
-				go hlsToMp4(c.archivePath, c.id)
-				if err != nil {
-					log.Println(err)
+				if !strings.Contains(c.id, "_720") {
+					err := os.Rename(c.livePath, c.archivePath)
+					if err != nil {
+						log.Println("ERROR WHILE MOVING DIR: ", err)
+					}
+					subj := "mp4"
+					jsonObj := gabs.New()
+					jsonObj.Set(c.archivePath, "path")
+					jsonObj.Set(c.id, "name")
+					c.cntrl.nc.Publish(subj, jsonObj.Bytes())
+					c.cntrl.nc.Flush()
+					if err := c.cntrl.nc.LastError(); err != nil {
+						fmt.Println(err)
+					} else {
+						fmt.Printf("Published [%s] : '%s'\n", subj, jsonObj.Bytes())
+					}
+				} else {
+					err := os.RemoveAll(c.livePath)
+					if err != nil {
+						log.Println(err)
+					}
 				}
+
 				return
 			}
 		default:

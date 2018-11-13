@@ -65,6 +65,7 @@ func printMsg(m *nats.Msg, cntrlr *Controller) {
 		}
 		time.Sleep(3 * time.Second)
 		go Recorder(cntrlr, name)
+		time.Sleep(3 * time.Second)
 		go Recorder(cntrlr, name+"_720")
 
 	} else {
@@ -72,19 +73,39 @@ func printMsg(m *nats.Msg, cntrlr *Controller) {
 	}
 }
 func checkForPrem(name string) (bool, error) {
+	var hidden float64
 	//log.Println("check for live")
 	result, err := makeRequest("https://goodgame.ru/api/player?src=" + name)
 	if err != nil {
 		return false, err
 	}
 	jsonParsed, _ := gabs.ParseJSON([]byte(result))
-	switch jsonParsed.Path("channel_premium").Data().(type) {
-	case bool:
-		channel_status := jsonParsed.Path("channel_premium").Data().(bool)
-		return channel_status, nil
-	case string:
-		return false, nil
+	children, _ := jsonParsed.ChildrenMap()
+	for key, value := range children {
+		switch value.Data().(type) {
+		case nil:
+			log.Println("interface api data is nil")
+		default:
+			switch key {
+			case "hidden":
+				hidden = jsonParsed.Path("hidden").Data().(float64)
+			case "channel_premium":
+				switch jsonParsed.Path("channel_premium").Data().(type) {
+				case bool:
+					channel_status := jsonParsed.Path("channel_premium").Data().(bool)
+					return channel_status, nil
+				case string:
+					return false, nil
+				}
+			}
+		}
+
 	}
+
+	if hidden == 1 {
+		return false, errors.New("channel is hidden")
+	}
+
 	return false, errors.New("can't find type in json answer")
 
 }

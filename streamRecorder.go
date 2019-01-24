@@ -12,7 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"./av/pubsub"
+	//	"./format/fmp4"
 	"github.com/Jeffail/gabs"
+	"github.com/nareix/joy4/av"
+	//	"github.com/nareix/joy4/av/avutil"
+	"github.com/nareix/joy4/format"
 )
 
 type Client struct {
@@ -23,6 +28,13 @@ type Client struct {
 	livePath               string
 	exitsCounter           int
 	archivePathWithoutMins string
+	que                    *pubsub.Queue
+	streams                []av.CodecData
+	isTransmuxing          bool
+}
+
+func init() {
+	format.RegisterAll()
 }
 
 func makeRequest(url string) (string, error) {
@@ -43,7 +55,7 @@ func makeRequest(url string) (string, error) {
 
 	return string(data), nil
 }
-func DownloadChunkFile(filepath string, url string, pl string, chunk string, duration int, client *Client) error {
+func DownloadChunkFile(filepath string, url string, pl string, chunk string, duration float64, client *Client) error {
 
 	// Create the file
 	//fmt.Println(filepath)
@@ -70,13 +82,94 @@ func DownloadChunkFile(filepath string, url string, pl string, chunk string, dur
 		_, err = io.Copy(out, resp.Body)
 		if err != nil {
 			return err
+
 		}
+		go appenQue(client, filepath)
+		//		go OnFlyTransmux(filepath, client.archivePath, client.id)
 	} else {
 		//fmt.Println("exist")
 		//client.exitsCounter++
 	}
 	return nil
 }
+func appenQue(client *Client, tsFilepath string) {
+	//file, _ := avutil.Open(tsFilepath)
+	//avutil.CopyFile(client.que, file)
+	//client.streams, _ = file.Streams()
+	//fmt.Println(client.isTransmuxing)
+	if client.isTransmuxing != true {
+		fmt.Println("Starting on fly transmux")
+		if !strings.Contains(client.id, "_720") {
+			go OnFlyTransmux(client.archivePath, client.id, client, client.livePath+client.id+"_vod.m3u8")
+		}
+		client.isTransmuxing = true
+	}
+	//	file.Close()
+}
+func OnFlyTransmux(mp4path string, id string, client *Client, hlspath string) {
+	existsAndMake(mp4path)
+	mp4path = mp4path + id + ".mp4"
+	ffmpeg, err := exec.Command("/usr/local/bin/ffmpeg", "-y", "-i", hlspath, "-c", "copy", "-f", "mp4", mp4path).Output()
+	if err != nil {
+		fmt.Println(fmt.Sprint(err))
+		return
+	}
+	fmt.Println(string(ffmpeg))
+	/*
+		fmt.Println(mp4path)
+		mp4path = mp4path + id + ".mp4"
+		outfile, _ := os.Create(mp4path)
+		dst := fmp4.NewMuxer(outfile)
+		dst.SetPath("/tank/")
+		dst.SetMaxFrames(350)
+		dst.WriteHeader(client.streams, true)
+		err := avutil.CopyPackets(dst, client.que.Latest())
+		if err != nil {
+			log.Println(err)
+		}*/
+	log.Println("EndMux")
+
+}
+
+/*func OnFlyTransmux(tsFilepath string, mp4path string, id string) {
+	existsAndMake(mp4path)
+	mp4path = mp4path + id + ".mp4"
+	mp4path_init := mp4path + id + "_init.mp4"
+	file, _ := avutil.Open(tsFilepath)
+	// Create the fileformat
+	_, err := os.Stat(mp4path)
+	if os.IsNotExist(err) {
+		outfile, err := os.Create(mp4path)
+		defer outfile.Close()
+		if err != nil {
+			fmt.Println(err)
+		}
+		dst := fmp4.NewMuxer(outfile)
+		dst.SetPath(mp4path)
+		dst.SetMaxFrames(60)
+		fileStreams, _ := file.Streams()
+		dst.WriteHeader(fileStreams, true)
+		err = avutil.CopyPackets(dst, file)
+		if err != nil {
+			fmt.Println(err)
+		}
+	} else {
+		outfile, err := os.OpenFile(mp4path, os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer outfile.Close()
+		dst := fmp4.NewMuxer(outfile)
+		dst.SetPath(mp4path_init)
+		dst.SetMaxFrames(60)
+		fileStreams, _ := file.Streams()
+		dst.WriteHeader(fileStreams, false)
+		err = avutil.CopyPackets(dst, file)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}*/
 func DownloadFile(filepath string, url string) error {
 
 	// Create the file
@@ -101,7 +194,7 @@ func DownloadFile(filepath string, url string) error {
 
 	return nil
 }
-func WritePlaylist(filepath string, data string, duration int, client *Client) error {
+func WritePlaylist(filepath string, data string, duration float64, client *Client) error {
 
 	// Create the file
 	_, err := os.Stat(filepath)
@@ -113,7 +206,7 @@ func WritePlaylist(filepath string, data string, duration int, client *Client) e
 			return err
 		}
 		defer out.Close()
-		header := "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:LIVE\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-TARGETDURATION:2\n#EXTINF:" + strconv.Itoa(duration) + ",\n"
+		header := "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:LIVE\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-TARGETDURATION:2\n#EXTINF:" + fmt.Sprintf("%f", duration) + ",\n"
 		// Write the body to file
 		_, err = out.WriteString(header + data)
 		if err != nil {
@@ -128,7 +221,7 @@ func WritePlaylist(filepath string, data string, duration int, client *Client) e
 
 		defer f.Close()
 
-		if _, err = f.WriteString("\n#EXTINF:" + strconv.Itoa(duration) + ",\n" + data); err != nil {
+		if _, err = f.WriteString("\n#EXTINF:" + fmt.Sprintf("%f", duration) + ",\n" + data); err != nil {
 			fmt.Println(err, "orhere")
 		}
 		//fmt.Println("append")
@@ -141,7 +234,7 @@ func fetchStream(streamName string, path string, client *Client) {
 	if err != nil {
 		fmt.Println(err)
 		if err.Error() == "Status error: 404" {
-			if client.exitsCounter > 10 {
+			if client.exitsCounter > 5 {
 				client.cntrl.unregister <- client
 			} else {
 				client.exitsCounter++
@@ -149,7 +242,7 @@ func fetchStream(streamName string, path string, client *Client) {
 		}
 	}
 	playlistString := strings.Split(playlist, "\n")
-	var dur int
+	var dur float64
 	for _, line := range playlistString {
 		line = strings.TrimSpace(line)
 		switch {
@@ -158,14 +251,14 @@ func fetchStream(streamName string, path string, client *Client) {
 			duration := line[8:sepIndex]
 			durationFloat, _ := strconv.ParseFloat(duration, 64)
 			//fmt.Println(durationFloat)
-			dur = int(durationFloat)
+			dur = durationFloat
 		case !strings.HasPrefix(line, "#"):
 			//fmt.Println(line)
 			fetch2(line, dur, streamName, path, client)
 		}
 	}
 }
-func fetch2(chunk string, Duration int, NAME string, path string, client *Client) {
+func fetch2(chunk string, Duration float64, NAME string, path string, client *Client) {
 	DownloadChunkFile(path+string(chunk), "http://hls.goodgame.ru/hls/"+chunk, path+NAME+"_vod.m3u8", chunk, Duration, client)
 }
 func endPlaylist(filepath string) {
@@ -206,14 +299,11 @@ func (c *Client) handlerRead() {
 				log.Println("StopRecord1")
 				endPlaylist(c.livePath + c.id + "_vod.m3u8")
 				if !strings.Contains(c.id, "_720") {
-					err := os.Rename(c.livePath, c.archivePath)
-					if err != nil {
-						log.Println("ERROR WHILE MOVING DIR: ", err)
-					}
 					subj := "mp4"
 					jsonObj := gabs.New()
 					jsonObj.Set(c.archivePath, "path")
 					jsonObj.Set(c.id, "name")
+					c.que.Close()
 					c.cntrl.nc.Publish(subj, jsonObj.Bytes())
 					c.cntrl.nc.Flush()
 					if err := c.cntrl.nc.LastError(); err != nil {
@@ -221,12 +311,17 @@ func (c *Client) handlerRead() {
 					} else {
 						fmt.Printf("Published [%s] : '%s'\n", subj, jsonObj.Bytes())
 					}
-				} else {
-					err := os.RemoveAll(c.livePath)
+				}
+				go func() {
+					err := os.Rename(c.livePath, "/tank/vod/"+c.id+"/temp-"+time.Now().Format("20060102150405")+"/")
 					if err != nil {
 						log.Println(err)
 					}
-				}
+					err = os.RemoveAll("/tank/vod/" + c.id + "/temp-" + time.Now().Format("20060102150405") + "/")
+					if err != nil {
+						log.Println(err)
+					}
+				}()
 
 				return
 			}
@@ -294,7 +389,9 @@ func Recorder(controller *Controller, id string) {
 	log.Println("StartRecord")
 	ArchivePath, ArchivePathWithoutMins := getArchivePath(id)
 	LivePath := "/tank/vod/" + id + "/live/"
-	client := &Client{id: id, stopRecord: make(chan []byte, 256), cntrl: controller, archivePath: ArchivePath, livePath: LivePath, exitsCounter: 0, archivePathWithoutMins: ArchivePathWithoutMins}
+	que := pubsub.NewQueue()
+	que.SetMaxBufCount(30)
+	client := &Client{id: id, stopRecord: make(chan []byte, 256), cntrl: controller, archivePath: ArchivePath, livePath: LivePath, exitsCounter: 0, archivePathWithoutMins: ArchivePathWithoutMins, que: que, isTransmuxing: false}
 	client.cntrl.register <- client
 	existsAndMake(client.archivePathWithoutMins)
 	existsAndMake(client.livePath)

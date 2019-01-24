@@ -5,18 +5,110 @@ import (
 	"errors"
 	"flag"
 	"log"
+	"os"
 	"runtime"
 	"time"
 
 	"github.com/Jeffail/gabs"
+	"github.com/nareix/joy4/av"
+	"github.com/nareix/joy4/av/avutil"
+	//	"github.com/nareix/joy4/format/mp4"
+	//"github.com/nareix/joy4/av/pktque"
+	"./av/pubsub"
+	"./format/fmp4"
+	"github.com/nareix/joy4/format"
 	"github.com/nats-io/go-nats"
 )
 
 var subj = "trns"
 var showTime = flag.Bool("t", false, "Display timestamps")
 
+func init() {
+	format.RegisterAll()
+}
+func transmux(que *pubsub.Queue, streams []av.CodecData) {
+	outfile, _ := os.Create("/tank/all2.mp4")
+	dst := fmp4.NewMuxer(outfile)
+	dst.SetPath("/tank/")
+	dst.SetMaxFrames(5)
+	dst.WriteHeader(streams, true)
+	err := avutil.CopyPackets(dst, que.Oldest())
+	if err != nil {
+		log.Println(err)
+	}
+	log.Println("EndMux")
+	que.Close()
+}
 func main() {
-	log.Println("Hello World!")
+	/*log.Println("Hello World!")
+	que := pubsub.NewQueue()
+	que.SetMaxBufCount(155)
+	file, _ := avutil.Open("/tank/vod1168-5532.ts")
+	streams, _ := file.Streams()
+	avutil.CopyFile(que, file)
+	go transmux(que, streams)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5533.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5534.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5535.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5536.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5537.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5538.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5539.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5540.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5541.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5542.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5542.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5543.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5544.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5545.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5546.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	file, _ = avutil.Open("/tank/vod1168-5547.ts")
+	avutil.CopyFile(que, file)
+	file.Close()
+	que.Close()
+
+	/*OnFlyTransmux("/tank/vod1168-5532.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5533.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5534.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5535.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5536.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5537.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5538.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5539.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5540.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5541.ts", "/tank/", "test")
+	OnFlyTransmux("/tank/vod1168-5542.ts", "/tank/", "test")*/
 	nc, err := nats.Connect("nats://guest:guest@origin-7.goodgame.ru:4242")
 
 	if err != nil {
@@ -60,13 +152,16 @@ func printMsg(m *nats.Msg, cntrlr *Controller) {
 		for k, c := range cntrlr.records {
 			if k == name {
 				cntrlr.unregister <- c
+				return
 			}
 
 		}
+		//if name == "10603" {
 		time.Sleep(3 * time.Second)
 		go Recorder(cntrlr, name)
 		time.Sleep(3 * time.Second)
 		go Recorder(cntrlr, name+"_720")
+		//}
 
 	} else {
 

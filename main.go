@@ -4,6 +4,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -158,14 +159,33 @@ func printMsg(m *nats.Msg, cntrlr *Controller) {
 		}
 		//if name == "10603" {
 		time.Sleep(3 * time.Second)
-		go Recorder(cntrlr, name)
+		go Recorder(cntrlr, name+"_prem")
+		genMaster(name)
 		time.Sleep(3 * time.Second)
 		go Recorder(cntrlr, name+"_720")
+		go Recorder(cntrlr, name+"_480")
 		//}
 
 	} else {
 
 	}
+}
+func genMaster(streamname string) {
+	prem_bitrate := "8000"
+	prem_resol := "1920x1080"
+	high_bitrate := "2000"
+	pathtomanifest := "/tank/vod"
+	manifest := "#EXTM3U\r\n" + "#EXT-X-VERSION:3\r\n" + "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" + prem_bitrate + "000,RESOLUTION=" + prem_resol + "\r\n" + streamname + "/live/" + streamname + "_vod.m3u8\r\n" + "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" + high_bitrate + "000,RESOLUTION=1280x720\r\n" + streamname + "_720" + "/live/" + streamname + "_720_vod.m3u8\r\n" + "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1320000,RESOLUTION=800x450\r\n" + streamname + "_480" + "/live/" + streamname + "_480_vod.m3u8\r\n"
+	/*err := os.Remove(pathtomanifest + "/" + streamname + "_master.m3u8")
+	if err != nil {
+		fmt.Println(err)
+	}*/
+	f, err := os.Create(pathtomanifest + "/" + streamname + "_master.m3u8")
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer f.Close()
+	f.Write([]byte(manifest))
 }
 func checkForPrem(name string) (bool, error) {
 	var hidden float64

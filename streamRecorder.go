@@ -31,6 +31,7 @@ type Client struct {
 	que                    *pubsub.Queue
 	streams                []av.CodecData
 	isTransmuxing          bool
+	isPrem                 bool
 }
 
 func init() {
@@ -99,7 +100,7 @@ func appenQue(client *Client, tsFilepath string) {
 	//fmt.Println(client.isTransmuxing)
 	if client.isTransmuxing != true {
 		fmt.Println("Starting on fly transmux")
-		if !strings.Contains(client.id, "_720") {
+		if !strings.Contains(client.id, "_720") && !strings.Contains(client.id, "_480") {
 			go OnFlyTransmux(client.archivePath, client.id, client, client.livePath+client.id+"_vod.m3u8")
 		}
 		client.isTransmuxing = true
@@ -230,6 +231,9 @@ func WritePlaylist(filepath string, data string, duration float64, client *Clien
 	return nil
 }
 func fetchStream(streamName string, path string, client *Client) {
+	if client.isPrem {
+		streamName = streamName + "_prem"
+	}
 	playlist, err := makeRequest("http://hls.goodgame.ru/hls/" + streamName + ".m3u8")
 	if err != nil {
 		fmt.Println(err)
@@ -259,7 +263,7 @@ func fetchStream(streamName string, path string, client *Client) {
 	}
 }
 func fetch2(chunk string, Duration float64, NAME string, path string, client *Client) {
-	DownloadChunkFile(path+string(chunk), "http://hls.goodgame.ru/hls/"+chunk, path+NAME+"_vod.m3u8", chunk, Duration, client)
+	DownloadChunkFile(path+string(chunk), "http://hls.goodgame.ru/hls/"+chunk, path+client.id+"_vod.m3u8", chunk, Duration, client)
 }
 func endPlaylist(filepath string) {
 	fmt.Println("playlist path : ", filepath)
@@ -298,7 +302,7 @@ func (c *Client) handlerRead() {
 			if ok {
 				log.Println("StopRecord1")
 				endPlaylist(c.livePath + c.id + "_vod.m3u8")
-				if !strings.Contains(c.id, "_720") {
+				if !strings.Contains(c.id, "_720") && !strings.Contains(c.id, "_480") {
 					subj := "mp4"
 					jsonObj := gabs.New()
 					jsonObj.Set(c.archivePath, "path")
@@ -372,6 +376,7 @@ func existsAndMake(path string) bool {
 	}
 	return true
 }
+
 func getArchivePath(id string) (string, string) {
 	currentTime := time.Now()
 	timeStampString := currentTime.Format("2006-01-02 15:04:05")
@@ -387,11 +392,23 @@ func getArchivePath(id string) (string, string) {
 }
 func Recorder(controller *Controller, id string) {
 	log.Println("StartRecord")
-	ArchivePath, ArchivePathWithoutMins := getArchivePath(id)
-	LivePath := "/tank/vod/" + id + "/live/"
+	var ArchivePath string
+	var ArchivePathWithoutMins string
+	var LivePath string
+	var prem bool = false
+	if strings.Contains(id, "_prem") {
+		t := strings.Replace(id, "_prem", "", -1)
+		id = t
+		prem = true
+		ArchivePath, ArchivePathWithoutMins = getArchivePath(t)
+		LivePath = "/tank/vod/" + t + "/live/"
+	} else {
+		ArchivePath, ArchivePathWithoutMins = getArchivePath(id)
+		LivePath = "/tank/vod/" + id + "/live/"
+	}
 	que := pubsub.NewQueue()
 	que.SetMaxBufCount(30)
-	client := &Client{id: id, stopRecord: make(chan []byte, 256), cntrl: controller, archivePath: ArchivePath, livePath: LivePath, exitsCounter: 0, archivePathWithoutMins: ArchivePathWithoutMins, que: que, isTransmuxing: false}
+	client := &Client{id: id, stopRecord: make(chan []byte, 256), cntrl: controller, archivePath: ArchivePath, livePath: LivePath, exitsCounter: 0, archivePathWithoutMins: ArchivePathWithoutMins, que: que, isTransmuxing: false, isPrem: prem}
 	client.cntrl.register <- client
 	existsAndMake(client.archivePathWithoutMins)
 	existsAndMake(client.livePath)

@@ -158,10 +158,9 @@ func printMsg(m *nats.Msg, cntrlr *Controller) {
 
 		}
 		//if name == "10603" {
-		time.Sleep(3 * time.Second)
+		time.Sleep(10 * time.Second)
 		go Recorder(cntrlr, name+"_prem")
 		genMaster(name)
-		time.Sleep(3 * time.Second)
 		go Recorder(cntrlr, name+"_720")
 		go Recorder(cntrlr, name+"_480")
 		//}

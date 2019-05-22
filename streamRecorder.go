@@ -110,7 +110,7 @@ func appenQue(client *Client, tsFilepath string) {
 func OnFlyTransmux(mp4path string, id string, client *Client, hlspath string) {
 	existsAndMake(mp4path)
 	mp4path = mp4path + id + ".mp4"
-	ffmpeg, err := exec.Command("/usr/local/bin/ffmpeg", "-y", "-i", hlspath, "-c", "copy", "-f", "mp4", mp4path).Output()
+	ffmpeg, err := exec.Command("/usr/bin/ffmpeg", "-y", "-i", hlspath, "-c", "copy", "-f", "mp4", mp4path).Output()
 	if err != nil {
 		fmt.Println(fmt.Sprint(err))
 		return
@@ -282,7 +282,7 @@ func hlsToMp4(filepath string, id string) {
 	hlspath := filepath + id + "_vod.m3u8"
 	mp4path := filepath + id + ".mp4"
 	fmt.Println("hls : ", hlspath, "mp4 : ", mp4path)
-	ffmpeg, err := exec.Command("/usr/local/bin/ffmpeg", "-y", "-i", hlspath, "-live_start_index", "0", "-movflags", "+faststart", "-c:a", "copy", "-c:v", "copy", "-f", "mp4", mp4path).Output()
+	ffmpeg, err := exec.Command("/usr/bin/ffmpeg", "-y", "-i", hlspath, "-live_start_index", "0", "-movflags", "+faststart", "-c:a", "copy", "-c:v", "copy", "-f", "mp4", mp4path).Output()
 	if err != nil {
 		fmt.Println(fmt.Sprint(err))
 		return

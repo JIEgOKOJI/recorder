@@ -16,6 +16,7 @@ import (
 	//	"./format/fmp4"
 	"github.com/Jeffail/gabs"
 	"github.com/nareix/joy4/av"
+
 	//	"github.com/nareix/joy4/av/avutil"
 	"github.com/nareix/joy4/format"
 )
@@ -100,7 +101,7 @@ func appenQue(client *Client, tsFilepath string) {
 	//fmt.Println(client.isTransmuxing)
 	if client.isTransmuxing != true {
 		fmt.Println("Starting on fly transmux")
-		if !strings.Contains(client.id, "_720") && !strings.Contains(client.id, "_480") {
+		if !strings.Contains(client.id, "_720") && !strings.Contains(client.id, "_480") && !strings.Contains(client.id, "_240") {
 			go OnFlyTransmux(client.archivePath, client.id, client, client.livePath+client.id+"_vod.m3u8")
 		}
 		client.isTransmuxing = true
@@ -110,8 +111,9 @@ func appenQue(client *Client, tsFilepath string) {
 func OnFlyTransmux(mp4path string, id string, client *Client, hlspath string) {
 	existsAndMake(mp4path)
 	mp4path = mp4path + id + ".mp4"
-	ffmpeg, err := exec.Command("/usr/bin/ffmpeg", "-y", "-i", hlspath, "-c", "copy", "-f", "mp4", mp4path).Output()
+	ffmpeg, err := exec.Command("/usr/bin/ffmpeg", "-y", "-i", hlspath, "-c", "copy", "-movflags", "+skip_trailer", "-f", "mp4", mp4path).Output()
 	if err != nil {
+		fmt.Println(string(ffmpeg))
 		fmt.Println(fmt.Sprint(err))
 		return
 	}
@@ -317,11 +319,11 @@ func (c *Client) handlerRead() {
 					}
 				}
 				go func() {
-					err := os.Rename(c.livePath, "/tank/vod/"+c.id+"/temp-"+time.Now().Format("20060102150405")+"/")
+					err := os.Rename(c.livePath, "/hot/vod/"+c.id+"/temp-"+time.Now().Format("20060102150405")+"/")
 					if err != nil {
 						log.Println(err)
 					}
-					err = os.RemoveAll("/tank/vod/" + c.id + "/temp-" + time.Now().Format("20060102150405") + "/")
+					err = os.RemoveAll("/hot/vod/" + c.id + "/temp-" + time.Now().Format("20060102150405") + "/")
 					if err != nil {
 						log.Println(err)
 					}
@@ -401,10 +403,10 @@ func Recorder(controller *Controller, id string) {
 		id = t
 		prem = true
 		ArchivePath, ArchivePathWithoutMins = getArchivePath(t)
-		LivePath = "/tank/vod/" + t + "/live/"
+		LivePath = "/hot/vod/" + t + "/live/"
 	} else {
 		ArchivePath, ArchivePathWithoutMins = getArchivePath(id)
-		LivePath = "/tank/vod/" + id + "/live/"
+		LivePath = "/hot/vod/" + id + "/live/"
 	}
 	que := pubsub.NewQueue()
 	que.SetMaxBufCount(30)

@@ -13,6 +13,7 @@ import (
 	"github.com/Jeffail/gabs"
 	"github.com/nareix/joy4/av"
 	"github.com/nareix/joy4/av/avutil"
+
 	//	"github.com/nareix/joy4/format/mp4"
 	//"github.com/nareix/joy4/av/pktque"
 	"./av/pubsub"
@@ -187,13 +188,18 @@ func genMaster(streamname string) {
 	f.Write([]byte(manifest))
 }
 func checkForPrem(name string) (bool, error) {
-	var hidden float64
+	//	var hidden float64
 	//log.Println("check for live")
-	result, err := makeRequest("https://goodgame.ru/api/player?src=" + name)
+	result, err := makeRequest("https://goodgame.ru/api/4/recorder/" + name)
 	if err != nil {
 		return false, err
 	}
-	jsonParsed, _ := gabs.ParseJSON([]byte(result))
+	log.Println(result)
+	if result == "true" {
+		log.Println("Api said record then we record it ", result)
+		return true, nil
+	}
+	/*jsonParsed, _ := gabs.ParseJSON([]byte(result))
 	children, _ := jsonParsed.ChildrenMap()
 	for key, value := range children {
 		switch value.Data().(type) {
@@ -214,11 +220,11 @@ func checkForPrem(name string) (bool, error) {
 			}
 		}
 
-	}
+	}*/
 
-	if hidden == 1 {
+	/*if hidden == 1 {
 		return false, errors.New("channel is hidden")
-	}
+	}*/
 
 	return false, errors.New("can't find type in json answer")
 

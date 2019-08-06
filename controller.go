@@ -1,7 +1,6 @@
 package main
 
 import (
-	//	"fmt"
 	"log"
 	"sync"
 
@@ -12,8 +11,8 @@ type Controller struct {
 	records    map[string]*Client
 	register   chan *Client
 	unregister chan *Client
-	mu         *sync.Mutex
 	nc         *nats.Conn
+	mu         *sync.Mutex
 }
 
 func newController() *Controller {
@@ -33,6 +32,8 @@ func (C *Controller) run() {
 			C.mu.Lock()
 			client.cntrl.records[client.id] = client
 			C.mu.Unlock()
+			client.startRecord <- []byte("1")
+			log.Println("START RECORD CNTRL")
 			log.Println(client.id)
 		case client := <-C.unregister:
 			func() {
@@ -41,20 +42,13 @@ func (C *Controller) run() {
 						log.Println("Recovered in f", r)
 					}
 				}()
+				log.Println("STOP RECORD CNTRL")
 				client.stopRecord <- []byte("1")
 			}()
-
 			C.mu.Lock()
 			delete(client.cntrl.records, client.id)
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						log.Println("Recovered in f", r)
-					}
-				}()
-				close(client.stopRecord)
-			}()
 			C.mu.Unlock()
+			close(client.stopRecord)
 			log.Println(client.id)
 		}
 	}
